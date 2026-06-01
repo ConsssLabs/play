@@ -18,10 +18,20 @@ A Godot 4 HTML5 export produces two files that are too big for normal hosting:
 | everything else (html/js/worklets/icon) | < 1 MB | ✅ | ✅ |
 
 So: the shell goes on **CF Pages** (free), the two big files become **GitHub
-Release assets** (free, 2 GB/file limit), and `public/_redirects` bridges them.
+Release assets** (free, 2 GB/file limit), and a **Cloudflare Pages Function**
+(`functions/[[path]].js`) serves them **same-origin** by proxying
+`releases/latest/download/` at the edge.
+
+> A plain redirect to GitHub does **not** work: GitHub's release-asset host
+> sends no `Access-Control-Allow-Origin`, so the browser blocks the
+> cross-origin fetch (verified 2026-06-02). The edge Function sidesteps this —
+> it fetches server-side (no browser CORS) and returns the bytes from
+> `play.conssswars.com` itself. It also sets `Content-Type: application/wasm`
+> so streaming compilation works.
+
 The build is **single-threaded**, so we disable cross-origin isolation
-(`ensureCrossOriginIsolationHeaders:false` in `public/index.html`) — required so
-the browser may load the binaries cross-origin from GitHub.
+(`ensureCrossOriginIsolationHeaders:false` in `public/index.html`) — no
+SharedArrayBuffer is needed.
 
 ## Layout
 
@@ -31,8 +41,10 @@ public/                         ← Cloudflare Pages output directory
 ├── index.js                    ← Godot loader
 ├── index.audio*.worklet.js     ← audio worklets (must stay same-origin)
 ├── index.icon.png              ← favicon
-├── _redirects                  ← /index.wasm /index.pck → releases/latest/download
+├── _redirects                  ← (no rules; binaries handled by the Function)
 └── _headers                    ← cache policy (no COOP/COEP)
+functions/                      ← Cloudflare Pages Functions (repo root, not public/)
+└── [[path]].js                 ← same-origin proxy for /index.wasm + /index.pck
 bridge/                         ← Sui + Walrus wallet bridge (built into public/dist)
 ├── config.public.js            ← PUBLIC ids/urls; Tatum key injected from env
 ├── package.json
@@ -93,17 +105,19 @@ git add public && git commit -m "chore: refresh web shell" && git push
 - Wallet connect / X / Discord buttons respond (top-level page → no iframe
   popup blocking, unlike Wavedash/itch).
 
-## If CORS blocks the binaries
+## How the binaries are served (and the CORS gotcha)
 
-The one unverified risk: a cross-origin fetch of the GitHub-hosted `index.pck`/
-`index.wasm` only works if GitHub returns permissive CORS. If the browser
-console shows the binaries blocked by CORS, swap the external redirects for a
-**same-origin Cloudflare Worker proxy** so the bytes are served from
-`play.conssswars.com` itself:
+`functions/[[path]].js` is the mechanism — it is **required**, not a fallback.
+GitHub release assets do not send CORS headers, so the browser cannot fetch
+them cross-origin; the edge Function proxies them same-origin instead. It runs
+on the CF Pages Functions free tier (shares the Workers 100k req/day allowance;
+streaming the body uses negligible CPU, and `Cache-Control` lets the edge/browser
+cache repeat loads).
 
-- Add a Worker that fetches `https://github.com/ConsssLabs/play/releases/latest/download/<file>`
-  and streams it back, then route `/index.wasm` and `/index.pck` to the Worker
-  instead of the `_redirects` entries. (Worker free tier covers demo traffic.)
+If a future build re-enables `thread_support`, this whole model breaks (threads
+need cross-origin isolation, which then blocks even the same-origin proxy unless
+every response carries the right COOP/COEP/CORP headers). Keep the export
+single-threaded.
 
 ## Sibling sites (not this repo)
 
