@@ -1,0 +1,19 @@
+{
+  "name": "consss-wars-play-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser-side bridge for ConSSS Wars: Echoes of Chainoa 鏈州英雄傳：鏈之迴響 (play.conssswars.com). Bundles @mysten/sui, @mysten/wallet-standard, @mysten/walrus into public/dist/dapp-kit-bridge.bundle.js for the Godot HTML5 shell.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:watch": "node scripts/build.mjs --watch"
+  },
+  "dependencies": {
+    "@mysten/sui": "2.17.0",
+    "@mysten/wallet-standard": "0.20.3",
+    "@mysten/walrus": "1.1.7"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.0"
+  }
+}

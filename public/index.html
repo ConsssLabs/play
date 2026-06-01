@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<!--
+  ConSSS Wars: Echoes of Chainoa 鏈州英雄傳：鏈之迴響
+  Playable web shell for play.conssswars.com (Cloudflare Pages).
+
+  Hosting model (see README.md):
+    - This small shell (index.html + index.js loader + worklets + icon) is
+      served by Cloudflare Pages.
+    - The large engine files index.wasm (~38 MB) and index.pck (~316 MB)
+      exceed CF Pages' 25 MiB/file limit, so they live as GitHub Release
+      assets and are reached via public/_redirects (302 → releases/latest).
+    - Build is single-threaded (no SharedArrayBuffer), so we set
+      ensureCrossOriginIsolationHeaders:false — required so the browser can
+      load wasm/pck cross-origin from GitHub without COEP blocking them.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="content-type" content="text/html; charset=utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0B1428">
+  <title>ConSSS Wars: Echoes of Chainoa 鏈州英雄傳：鏈之迴響</title>
+  <link rel="icon" href="index.icon.png">
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #0B1428; color: #E8F1F8;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: hidden; }
+    #status { position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px; text-align: center; }
+    #status h1 { font-size: 28px; margin: 0; color: #7B5FA8; letter-spacing: 2px; }
+    #status p { margin: 0; opacity: 0.7; font-size: 14px; }
+    #progress { width: 280px; height: 4px; background: rgba(255,255,255,0.08);
+      border-radius: 2px; overflow: hidden; }
+    #progress::after { content: ''; display: block; width: 100%; height: 100%;
+      background: linear-gradient(90deg, #7B5FA8, #E8F1F8);
+      animation: pulse 1.6s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+    canvas { display: block; margin: 0 auto; background: #0B1428;
+      image-rendering: optimizeQuality; }
+  </style>
+</head>
+<body>
+  <div id="status">
+    <h1>ConSSS Wars</h1>
+    <p>Loading Echoes of Chainoa…</p>
+    <div id="progress"></div>
+  </div>
+  <canvas id="canvas">
+    Your browser does not support the canvas tag.
+  </canvas>
+
+  <!--
+    Browser bridge — wires window.consss = { connect, mint, uploadToWalrus,
+    readFromWalrus } so SuiWalletBridge.gd can drive Sui Wallet + Walrus.
+    Built from bridge/src by Cloudflare Pages (build command in README).
+    If dist/ is absent (no build step yet) this 404s harmlessly and the game
+    still loads — only wallet features are unavailable until the bridge ships.
+  -->
+  <script type="module" src="dist/dapp-kit-bridge.bundle.js"></script>
+
+  <script src="index.js"></script>
+  <script>
+    const GODOT_CONFIG = {"args":[],"canvasResizePolicy":2,"ensureCrossOriginIsolationHeaders":false,"executable":"index","experimentalVK":false,"fileSizes":{"index.pck":316192784,"index.wasm":37695054},"focusCanvas":true,"gdextensionLibs":[]};
+    const engine = new Engine(GODOT_CONFIG);
+    const statusEl = document.getElementById('status');
+
+    engine.startGame({
+      'onProgress': (current, total) => {
+        if (total > 0) {
+          statusEl.querySelector('p').textContent =
+            `Loading… ${Math.round(current / total * 100)}%`;
+        }
+      },
+    }).then(() => {
+      statusEl.style.display = 'none';
+    }).catch((err) => {
+      statusEl.querySelector('p').textContent = 'Failed to start: ' + err;
+    });
+  </script>
+</body>
+</html>

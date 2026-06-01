@@ -1,0 +1,12 @@
+# Cloudflare Pages redirects.
+# The engine binaries are too large for CF Pages (25 MiB/file limit), so they
+# live as GitHub Release assets. /releases/latest/download/ always resolves to
+# the newest release, so new game builds need a new release — NOT an edit here.
+#
+# NOTE: a cross-origin (CF Pages -> github.com) fetch of wasm/pck only works if
+# GitHub serves the asset with permissive CORS. If a browser test shows the pck
+# blocked by CORS, replace these with a same-origin Cloudflare Worker proxy
+# (see README "If CORS blocks the binaries").
+
+/index.wasm   https://github.com/ConsssLabs/play/releases/latest/download/index.wasm   302
+/index.pck    https://github.com/ConsssLabs/play/releases/latest/download/index.pck    302

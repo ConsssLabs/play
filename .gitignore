@@ -1,0 +1,19 @@
+# Node deps for the bridge build
+bridge/node_modules/
+
+# Built bridge bundle — created by Cloudflare Pages at deploy time. The built
+# file embeds the Tatum API key (when TATUM_API_KEY is set), so it must never
+# be committed.
+public/dist/
+
+# Never commit a secret config if one is copied in by mistake
+**/config.local.js
+
+# Large engine binaries live as GitHub Release assets, never in git
+# (GitHub rejects >100 MB; the .pck is ~316 MB).
+*.wasm
+*.pck
+
+# OS / editor cruft
+.DS_Store
+*.swp

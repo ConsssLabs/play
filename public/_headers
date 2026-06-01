@@ -1,0 +1,22 @@
+# Cloudflare Pages response headers.
+#
+# This build is single-threaded — we intentionally do NOT send
+# Cross-Origin-Opener-Policy / Cross-Origin-Embedder-Policy. Cross-origin
+# isolation would force COEP:require-corp, which would block the cross-origin
+# wasm/pck loaded from GitHub Releases. No SharedArrayBuffer is needed here.
+
+# HTML shell: always revalidate so new deploys show immediately.
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Engine loader + worklets: content-hashed by the build, safe to cache hard.
+/index.js
+  Cache-Control: public, max-age=31536000, immutable
+/*.worklet.js
+  Cache-Control: public, max-age=31536000, immutable
+
+# Bridge bundle (built by CF Pages): revalidate so key/ID changes propagate.
+/dist/*
+  Cache-Control: public, max-age=0, must-revalidate
