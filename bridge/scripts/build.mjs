@@ -4,11 +4,9 @@
 // @mysten/wallet-standard) into ../public/dist/dapp-kit-bridge.bundle.js,
 // which the Godot HTML5 shell (public/index.html) loads.
 //
-// Unlike the app-repo build, config is split: bridge/config.public.js holds
-// the public IDs/URLs and is committed; the secret Tatum API key is injected
-// here from the TATUM_API_KEY env var via the `__TATUM_API_KEY__` define.
-// No config.local.js, so nothing secret ever lands in git. If TATUM_API_KEY
-// is unset the key is empty and the bridge falls back to the public RPC.
+// No secrets are baked in: Sui RPC goes through the same-origin /rpc Pages
+// Function, which holds the Tatum API key server-side. config.public.js has
+// only public IDs/URLs, so nothing secret ever reaches the bundle or git.
 
 import { build, context } from 'esbuild';
 import { resolve, dirname } from 'node:path';
@@ -17,15 +15,6 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const bridgeRoot = resolve(here, '..');
 const outfile = resolve(bridgeRoot, '../public/dist/dapp-kit-bridge.bundle.js');
-
-const tatumKey = process.env.TATUM_API_KEY ?? '';
-if (!tatumKey) {
-  console.warn(
-    '[build] TATUM_API_KEY not set — bundling with an empty key.\n' +
-      '        The game still works via the public RPC fallback; set the\n' +
-      '        TATUM_API_KEY env var (CF Pages secret) for the Tatum gateway.',
-  );
-}
 
 const options = {
   entryPoints: [resolve(bridgeRoot, 'src/index.js')],
@@ -38,7 +27,6 @@ const options = {
   minify: true,
   treeShaking: true,
   define: {
-    '__TATUM_API_KEY__': JSON.stringify(tatumKey),
     'process.env.NODE_ENV': '"production"',
     global: 'globalThis',
   },

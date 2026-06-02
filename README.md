@@ -44,11 +44,11 @@ public/                         ← Cloudflare Pages output directory
 ├── _redirects                  ← (no rules; binaries handled by the Function)
 └── _headers                    ← cache policy (no COOP/COEP)
 functions/                      ← Cloudflare Pages Functions (repo root, not public/)
-└── [[path]].js                 ← same-origin proxy for /index.wasm + /index.pck
+└── [[path]].js                 ← same-origin proxy: /index.wasm, /index.pck, /rpc
 bridge/                         ← Sui + Walrus wallet bridge (built into public/dist)
-├── config.public.js            ← PUBLIC ids/urls; Tatum key injected from env
+├── config.public.js            ← PUBLIC ids/urls only — no key (RPC via /rpc)
 ├── package.json
-├── scripts/build.mjs           ← esbuild; reads TATUM_API_KEY env var
+├── scripts/build.mjs           ← esbuild bundler (no secrets baked in)
 └── src/                        ← bridge source (mirrors app/godot/web/src)
 scripts/upload-release.sh       ← uploads index.wasm + index.pck to a Release
 ```
@@ -88,8 +88,11 @@ git add public && git commit -m "chore: refresh web shell" && git push
    - **Build command:** `cd bridge && npm install && npm run build`
    - **Build output directory:** `public`
    - (No framework preset.)
-3. **Environment variables → add** `TATUM_API_KEY` = your Tatum key (optional —
-   without it the game falls back to the public Sui RPC, so it still runs).
+3. **Environment variables → add** `TATUM_API_KEY` = your Tatum key. This is a
+   **runtime secret** read by the `/rpc` Pages Function — it is never bundled
+   into the browser. Optional: without it, `/rpc` falls back to the public Sui
+   RPC, so the game still runs. (Set via dashboard, or
+   `wrangler pages secret put TATUM_API_KEY --project-name consss-play`.)
 4. Deploy. You'll get a `*.pages.dev` URL — open it and confirm the game loads.
 5. **Custom domains → Set up a custom domain → `play.conssswars.com`** (Cloudflare
    adds the CNAME automatically if `conssswars.com` is on this account).
@@ -118,6 +121,16 @@ If a future build re-enables `thread_support`, this whole model breaks (threads
 need cross-origin isolation, which then blocks even the same-origin proxy unless
 every response carries the right COOP/COEP/CORP headers). Keep the export
 single-threaded.
+
+## Sui RPC: server-side key, not in the browser
+
+The browser's `SuiClient` POSTs to **`/rpc`** (same-origin), handled by the same
+`functions/[[path]].js`. The Function attaches the Tatum `x-api-key` from the
+`TATUM_API_KEY` env var server-side and forwards to Tatum, falling back to the
+public Sui fullnode on any failure. The key is therefore **never shipped to the
+browser** (the old approach baked it into the bundle). `config.public.js` holds
+only public IDs/URLs; rotating the key = update the CF Pages env var, no rebuild.
+`mint()` is unaffected — it signs through the player's wallet, not `/rpc`.
 
 ## Sibling sites (not this repo)
 
