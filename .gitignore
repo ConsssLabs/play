@@ -9,6 +9,9 @@ public/dist/
 # Never commit a secret config if one is copied in by mistake
 **/config.local.js
 
+# Wrangler local state/cache (may hold deploy state); never commit
+.wrangler/
+
 # Large engine binaries live as GitHub Release assets, never in git
 # (GitHub rejects >100 MB; the .pck is ~316 MB).
 *.wasm
