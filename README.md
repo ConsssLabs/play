@@ -58,6 +58,17 @@ the bridge is built by CF Pages at deploy time; the binaries live in Releases.
 
 ## Deploy
 
+### One-command manual deploy (current method)
+After exporting the Web preset in Godot, run:
+```bash
+cd play && scripts/deploy.sh        # copies fresh export → builds bridge → uploads Release → wrangler deploy → verifies
+```
+This keeps the Cloudflare token **on your machine only** (read from `~/.cf_token`;
+account id from `$CLOUDFLARE_ACCOUNT_ID` or `~/.cf_account`) — **nothing is stored
+in GitHub** — and deploying is a deliberate manual step (your gate against bad
+builds). Delete `~/.cf_token` + revoke after. The numbered steps below are the
+same pipeline, broken out manually.
+
 ### 1. Export the game (in the app repo)
 In Godot, export the **Web** preset from `app/godot` → `app/exports/web/`
 (`index.html`, `index.js`, `index.wasm`, `index.pck`, worklets, icon).
