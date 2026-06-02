@@ -1,0 +1,24 @@
+{
+  "name": "play",
+  "version": "1.0.0",
+  "description": "Hosting repo for the **playable web build** at **https://play.conssswars.com**.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ConsssLabs/play.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ConsssLabs/play/issues"
+  },
+  "homepage": "https://github.com/ConsssLabs/play#readme",
+  "dependencies": {
+    "@noble/ed25519": "^3.1.0"
+  }
+}
