@@ -103,7 +103,7 @@ git add public && git commit -m "chore: refresh web shell" && git push
 - Open DevTools → Network: `index.wasm` and `index.pck` should be `200`
   (after the 302 to GitHub). DevTools → Console: no CORS errors.
 - Wallet connect / X / Discord buttons respond (top-level page → no iframe
-  popup blocking, unlike Wavedash/itch).
+  popup blocking).
 
 ## How the binaries are served (and the CORS gotcha)
 
