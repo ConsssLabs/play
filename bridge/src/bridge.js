@@ -20,7 +20,12 @@ export function installBridge(config) {
 
   function invoke(cb, result) {
     try {
-      cb([result]);
+      // Pass the result object as the SINGLE callback arg. Godot's
+      // create_callback wraps JS args into an Array, so GDScript receives
+      // `args[0] === result`. (Calling cb([result]) double-wraps it, leaving
+      // GDScript with args[0] === [result] — the bug that broke wallet/mint
+      // result handling.)
+      cb(result);
     } catch (e) {
       console.error('[consss] callback invocation failed', e);
     }
