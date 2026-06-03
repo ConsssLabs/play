@@ -48,7 +48,7 @@ echo "==> 2/5 build bridge (no key in bundle)"
 echo "==> 3/5 upload engine binaries to GitHub Release"
 TAG="web-$(date +%Y%m%d-%H%M%S)"
 gh release create "$TAG" "$EXPORT_DIR/index.wasm" "$EXPORT_DIR/index.pck" \
-  --repo ConsssLabs/play --title "$TAG" --notes "Manual deploy $TAG"
+  --repo ConsssLab/play --title "$TAG" --notes "Manual deploy $TAG"
 
 echo "==> 4/5 deploy public/ to Cloudflare Pages ($PROJECT)"
 CLOUDFLARE_API_TOKEN="$(cat ~/.cf_token)" CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID" \

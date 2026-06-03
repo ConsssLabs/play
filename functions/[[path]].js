@@ -27,7 +27,7 @@
 import * as ed from '@noble/ed25519';
 
 const RELEASE_BASE =
-  'https://github.com/ConsssLabs/play/releases/latest/download';
+  'https://github.com/ConsssLab/play/releases/latest/download';
 
 const PROXIED = {
   '/index.wasm': 'application/wasm',

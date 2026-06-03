@@ -4,7 +4,7 @@ Hosting repo for the **playable web build** at **https://play.conssswars.com**.
 
 This repo serves a *small* static shell from **Cloudflare Pages** and pulls the
 *large* Godot engine binaries from **GitHub Releases**. The game source lives in
-[`ConsssLabs/app`](https://github.com/ConsssLabs/app) (`godot/`); this repo only
+[`ConsssLab/app`](https://github.com/ConsssLab/app) (`godot/`); this repo only
 hosts the exported build.
 
 ## Why this split exists
@@ -94,7 +94,7 @@ git add public && git commit -m "chore: refresh web shell" && git push
 
 ### 4. Cloudflare Pages (one-time)
 1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** →
-   pick `ConsssLabs/play`.
+   pick `ConsssLab/play`.
 2. Build settings:
    - **Build command:** `cd bridge && npm install && npm run build`
    - **Build output directory:** `public`
@@ -145,5 +145,5 @@ only public IDs/URLs; rotating the key = update the CF Pages env var, no rebuild
 
 ## Sibling sites (not this repo)
 
-- `conssswars.com` → [`official-website`](https://github.com/ConsssLabs/official-website) (CF Pages)
-- `consss.wal.app` → [`official-limit-time-event`](https://github.com/ConsssLabs/official-limit-time-event) (Walrus Sites)
+- `conssswars.com` → [`official-website`](https://github.com/ConsssLab/official-website) (CF Pages)
+- `consss.wal.app` → [`official-limit-time-event`](https://github.com/ConsssLab/official-limit-time-event) (Walrus Sites)

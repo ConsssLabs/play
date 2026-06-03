@@ -8,16 +8,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ConsssLabs/play.git"
+    "url": "git+https://github.com/ConsssLab/play.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "bugs": {
-    "url": "https://github.com/ConsssLabs/play/issues"
+    "url": "https://github.com/ConsssLab/play/issues"
   },
-  "homepage": "https://github.com/ConsssLabs/play#readme",
+  "homepage": "https://github.com/ConsssLab/play#readme",
   "dependencies": {
     "@noble/ed25519": "^3.1.0"
   }

@@ -2,7 +2,7 @@
 set -euo pipefail
 #
 # Upload the Godot Web export's large binaries (index.wasm ~38 MB,
-# index.pck ~316 MB) as a GitHub Release on ConsssLabs/play.
+# index.pck ~316 MB) as a GitHub Release on ConsssLab/play.
 #
 # Why: these exceed CF Pages' 25 MiB/file limit AND GitHub's 100 MB-in-git
 # limit, so they ship as Release ASSETS instead. public/_redirects points
@@ -19,7 +19,7 @@ set -euo pipefail
 
 EXPORT_DIR="${1:-../app/exports/web}"
 TAG="${2:-web-$(date +%Y%m%d-%H%M)}"
-REPO="ConsssLabs/play"
+REPO="ConsssLab/play"
 
 WASM="$EXPORT_DIR/index.wasm"
 PCK="$EXPORT_DIR/index.pck"
