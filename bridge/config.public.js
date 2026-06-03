@@ -15,9 +15,9 @@ export const CONSSS_CONFIG = {
   rpcProxyPath: '/rpc',
 
   sui: {
-    chroniclePackageId: '0xe2615442e222c8e05aab163fb065a3a08941ac309734dd465eab8753f23a52ed',
-    chronicleRegistryId: '0x62a73974beefcaca4eb752b4b91918b8bce1d9f4f38d2757ffc9e0bbbddbf21c',
-    witnessRegistryId: '0x58c6cec4efa842518f6c074f7ed9308f0956062f63bf1c56fae6482a19bcaac4',
+    chroniclePackageId: '0x5efb10426a8929e88510dbc80711e2bf371aca08b179167b3037e20d097f6980',
+    chronicleRegistryId: '0x19b9f0fe18ea27a56f75b6d6302e00e80a9bf1656c81f87eecbb82a4bc3109ee',
+    witnessRegistryId: '0x7359529def5f8a225e6e7c460ff44ee4f276bdd5ce50c0c7b1e10faaa3e831d0',
   },
 
   walrus: {
