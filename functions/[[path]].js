@@ -29,6 +29,13 @@ import * as ed from '@noble/ed25519';
 const RELEASE_BASE =
   'https://github.com/ConsssLab/play/releases/latest/download';
 
+// Part of the edge-cache key for /index.pck + /index.wasm. A new release reuses
+// the same paths, so bumping this value instantly retires the old cached
+// binaries — no Cloudflare Cache-Purge token scope required. scripts/deploy.sh
+// stamps this with the unique release tag on every deploy (and restores the
+// placeholder after), so cache-busting is automatic.
+const ASSET_CACHE_VERSION = 'dev';
+
 const PROXIED = {
   '/index.wasm': 'application/wasm',
   '/index.pck': 'application/octet-stream',
@@ -56,7 +63,7 @@ export async function onRequest(context) {
   // release won't auto-invalidate this — purge /index.pck + /index.wasm on the
   // CF edge after each deploy (scripts/deploy.sh does this).
   const cache = caches.default;
-  const cacheKey = new Request(`${url.origin}${url.pathname}`, { method: 'GET' });
+  const cacheKey = new Request(`${url.origin}${url.pathname}?cv=${ASSET_CACHE_VERSION}`, { method: 'GET' });
   const hit = await cache.match(cacheKey);
   if (hit) return hit;
 
@@ -66,8 +73,11 @@ export async function onRequest(context) {
   }
   const headers = new Headers();
   headers.set('Content-Type', contentType);
-  // Long TTL: these only change on a new release, and we purge on deploy.
-  headers.set('Cache-Control', 'public, max-age=86400, immutable');
+  // Modest browser TTL, NOT immutable: the URL is fixed but its bytes change
+  // per release, so browsers must be able to revalidate (immutable would strand
+  // them on an old pck for a day). Edge speed comes from the versioned Cache
+  // API above, not from the browser.
+  headers.set('Cache-Control', 'public, max-age=600');
   const len = resp.headers.get('content-length');
   if (len) headers.set('Content-Length', len);
   const out = new Response(resp.body, { status: 200, headers });

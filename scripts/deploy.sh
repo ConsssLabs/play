@@ -50,34 +50,21 @@ TAG="web-$(date +%Y%m%d-%H%M%S)"
 gh release create "$TAG" "$EXPORT_DIR/index.wasm" "$EXPORT_DIR/index.pck" \
   --repo ConsssLab/play --title "$TAG" --notes "Manual deploy $TAG"
 
-echo "==> 4/5 deploy public/ to Cloudflare Pages ($PROJECT)"
+echo "==> 4/6 stamp edge-cache version with release tag (automatic cache-bust)"
+# A new release reuses the SAME /index.pck + /index.wasm paths, so the Function's
+# edge cache would keep serving the OLD binaries. Stamping ASSET_CACHE_VERSION
+# with the unique release tag changes the cache key, instantly retiring the old
+# cached copies — no Cloudflare Cache-Purge token scope required.
+FN="functions/[[path]].js"
+sed -i -E "s/ASSET_CACHE_VERSION = '[^']*'/ASSET_CACHE_VERSION = '$TAG'/" "$FN"
+echo "    ASSET_CACHE_VERSION -> $TAG"
+
+echo "==> 5/6 deploy public/ + Functions to Cloudflare Pages ($PROJECT)"
 CLOUDFLARE_API_TOKEN="$(cat ~/.cf_token)" CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID" \
   npx -y wrangler@latest pages deploy public --project-name "$PROJECT" --branch main --commit-dirty=true
-
-echo "==> 5/6 purge edge cache for the big binaries"
-# functions/[[path]].js edge-caches /index.pck + /index.wasm with a long TTL.
-# A new release reuses the SAME paths, so without a purge the CF edge keeps
-# serving the OLD pck/wasm -> stale game. Best-effort: needs a token with
-# Zone:Cache Purge + the zone id in ~/.cf_zone. If unavailable, purge manually:
-#   CF dashboard -> conssswars.com -> Caching -> Configuration ->
-#   Purge Custom URLs -> paste both URLs below.
-ZONE_ID="$(cat ~/.cf_zone 2>/dev/null || true)"
-if [ -n "$ZONE_ID" ]; then
-  purge=$(curl -s -X POST \
-    "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/purge_cache" \
-    -H "Authorization: Bearer $(cat ~/.cf_token)" \
-    -H "Content-Type: application/json" \
-    --data '{"files":["https://play.conssswars.com/index.pck","https://play.conssswars.com/index.wasm"]}')
-  echo "    purge response: $purge"
-  case "$purge" in
-    *'"success":true'*) echo "    edge cache purged OK" ;;
-    *) echo "    !! purge FAILED (token lacks Cache Purge?) — purge manually in dashboard (see above)." ;;
-  esac
-else
-  echo "    ~/.cf_zone not set — purge MANUALLY in dashboard, or the new build won't go live:"
-  echo "      https://play.conssswars.com/index.pck"
-  echo "      https://play.conssswars.com/index.wasm"
-fi
+# Restore the committed placeholder so the working tree stays clean; the deployed
+# Worker keeps the stamped tag.
+git -C "$HERE" checkout -- "$FN" 2>/dev/null || true
 
 echo "==> 6/6 verify"
 sleep 6
