@@ -48,16 +48,33 @@ export async function onRequest(context) {
   const contentType = PROXIED[url.pathname];
   if (!contentType) return next(); // static asset
 
+  // Edge-cache the big binaries. Without this every page load re-proxies the
+  // full 403 MB pck from GitHub through the Worker (cf-cache-status: DYNAMIC) —
+  // slow, and brutal on regions whose CF↔GitHub path is poor. We key the cache
+  // on the bare path (origin + pathname, no query/Range) so all visitors at a
+  // PoP share one warmed copy. NOTE: /releases/latest/download/ means a NEW
+  // release won't auto-invalidate this — purge /index.pck + /index.wasm on the
+  // CF edge after each deploy (scripts/deploy.sh does this).
+  const cache = caches.default;
+  const cacheKey = new Request(`${url.origin}${url.pathname}`, { method: 'GET' });
+  const hit = await cache.match(cacheKey);
+  if (hit) return hit;
+
   const resp = await fetch(`${RELEASE_BASE}${url.pathname}`, { redirect: 'follow' });
   if (!resp.ok || !resp.body) {
     return new Response(`Upstream ${resp.status} for ${url.pathname}`, { status: 502 });
   }
   const headers = new Headers();
   headers.set('Content-Type', contentType);
-  headers.set('Cache-Control', 'public, max-age=3600');
+  // Long TTL: these only change on a new release, and we purge on deploy.
+  headers.set('Cache-Control', 'public, max-age=86400, immutable');
   const len = resp.headers.get('content-length');
   if (len) headers.set('Content-Length', len);
-  return new Response(resp.body, { status: 200, headers });
+  const out = new Response(resp.body, { status: 200, headers });
+  // Populate the edge cache in the background so this first visitor isn't
+  // blocked on the write; subsequent loads at this PoP are served from edge.
+  context.waitUntil(cache.put(cacheKey, out.clone()));
+  return out;
 }
 
 // --- /rpc : Tatum-keyed Sui JSON-RPC with public-fullnode fallback ---------
