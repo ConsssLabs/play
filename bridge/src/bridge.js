@@ -11,7 +11,7 @@
 import { createSuiClient } from './sui-client.js';
 import { connect as walletConnect, signAndExecute, getConnected } from './wallet.js';
 import { uploadString, fetchString, blobUrl } from './walrus.js';
-import { buildMintTransaction, extractChronicleId } from './mint.js';
+import { buildMintTransaction, extractChronicleId, fetchVoucher } from './mint.js';
 import { getOwnedChronicles } from './chronicles.js';
 
 export function installBridge(config) {
@@ -67,14 +67,23 @@ export function installBridge(config) {
         const { account } = getConnected();
         if (!account) throw new Error('Wallet not connected — call connect() first.');
 
-        const tx = buildMintTransaction(payload, config);
+        // 1) anti-cheat voucher (attests hp_pct) from the same-origin Function
+        const voucher = await fetchVoucher(
+          {
+            player: account.address,
+            battle_id: payload.battleId,
+            hero_id: payload.heroId,
+            hp_pct: payload.hpPct,
+          },
+          config,
+        );
+
+        // 2) build + sign the voucher-gated mint; tier is computed on-chain
+        const tx = buildMintTransaction(payload, voucher, config);
         const result = await signAndExecute({ transaction: tx, chain });
 
         const objectId = extractChronicleId(result, account.address);
-        return {
-          digest: result.digest,
-          objectId,
-        };
+        return { digest: result.digest, objectId };
       });
     },
 
