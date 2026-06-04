@@ -34,13 +34,16 @@ ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-$(cat ~/.cf_account 2>/dev/null || true)}"
 [ -n "$ACCOUNT_ID" ] || { echo "ERROR: set CLOUDFLARE_ACCOUNT_ID env or put the id in ~/.cf_account." >&2; exit 1; }
 
 # --- check the export exists ---
-for f in index.js index.audio.worklet.js index.audio.position.worklet.js index.icon.png index.wasm index.pck; do
+for f in index.js index.audio.worklet.js index.audio.position.worklet.js index.wasm index.pck; do
   [ -f "$EXPORT_DIR/$f" ] || { echo "ERROR: missing $EXPORT_DIR/$f — run the Godot Web export first." >&2; exit 1; }
 done
 
-echo "==> 1/5 refresh shell loader/worklets/icon from $EXPORT_DIR"
+echo "==> 1/5 refresh shell loader/worklets from $EXPORT_DIR"
+# index.icon.png is intentionally NOT copied from the export — the Web export
+# regenerates it as Godot's default icon. The consss logo is a committed shell
+# file (public/index.icon.png); leave it untouched.
 cp "$EXPORT_DIR"/index.js "$EXPORT_DIR"/index.audio.worklet.js \
-   "$EXPORT_DIR"/index.audio.position.worklet.js "$EXPORT_DIR"/index.icon.png public/
+   "$EXPORT_DIR"/index.audio.position.worklet.js public/
 
 echo "==> 2/5 build bridge (no key in bundle)"
 ( cd bridge && npm install --silent && npm run build )
