@@ -1,149 +1,189 @@
-# play — ConSSS Wars: Echoes of Chainoa 鏈州英雄傳：鏈之迴響
+<h1 align="center">ConSSS Wars: Echoes of Chainoa</h1>
+<h3 align="center">鏈州英雄傳：鏈之迴響</h3>
 
-Hosting repo for the **playable web build** at **https://play.conssswars.com**.
+<p align="center">
+  A hand‑drawn, turn‑based tactics RPG set on the chain‑continent of <b>Chainoa</b> —
+  where the battles you win become on‑chain <b>Chronicles</b> and the sagas you write are
+  preserved forever on <b>Walrus</b>.
+</p>
 
-This repo serves a *small* static shell from **Cloudflare Pages** and pulls the
-*large* Godot engine binaries from **GitHub Releases**. The game source lives in
-[`ConsssLab/app`](https://github.com/ConsssLab/app) (`godot/`); this repo only
-hosts the exported build.
+<p align="center">
+  <a href="https://play.conssswars.com"><b>▶ Play now</b></a> ·
+  <a href="https://conssswars.com">Website</a> ·
+  <a href="https://consss.wal.app">Limited event</a>
+</p>
 
-## Why this split exists
+<p align="center">
+  <img alt="engine" src="https://img.shields.io/badge/engine-Godot%204.6-478cbf">
+  <img alt="chain" src="https://img.shields.io/badge/chain-Sui%20(testnet)-6fbcf0">
+  <img alt="storage" src="https://img.shields.io/badge/storage-Walrus-1f6feb">
+  <img alt="host" src="https://img.shields.io/badge/host-Cloudflare%20Pages-f38020">
+</p>
 
-A Godot 4 HTML5 export produces two files that are too big for normal hosting:
+> Built for the **Tatum × Build on Sui with Walrus** hackathon.
+> This repository hosts the **playable web build**; the game source lives in
+> [`ConsssLab/app`](https://github.com/ConsssLab/app) (`godot/`).
 
-| File | Size | GitHub (100 MB/file) | CF Pages (25 MiB/file) |
-|------|------|----------------------|------------------------|
-| `index.pck` | ~316 MB | ❌ rejected | ❌ rejected |
-| `index.wasm` | ~38 MB | ✅ | ❌ rejected |
-| everything else (html/js/worklets/icon) | < 1 MB | ✅ | ✅ |
+---
 
-So: the shell goes on **CF Pages** (free), the two big files become **GitHub
-Release assets** (free, 2 GB/file limit), and a **Cloudflare Pages Function**
-(`functions/[[path]].js`) serves them **same-origin** by proxying
-`releases/latest/download/` at the edge.
+## ✦ About
 
-> A plain redirect to GitHub does **not** work: GitHub's release-asset host
-> sends no `Access-Control-Allow-Origin`, so the browser blocks the
-> cross-origin fetch (verified 2026-06-02). The edge Function sidesteps this —
-> it fetches server-side (no browser CORS) and returns the bytes from
-> `play.conssswars.com` itself. It also sets `Content-Type: application/wasm`
-> so streaming compilation works.
+Lead a band of heroes through the battles of Chainoa in painterly, hand‑drawn
+fights. **ConSSS Wars** is a browser game first and a web3 game second: you can
+play the whole thing with no wallet — but connect one and your results stop
+being throwaway. Clear a battle and you can mint a **Chronicle**: a Sui NFT that
+records *which* battle, *how well* you fought, and a personal long‑form saga you
+author, stored on Walrus.
 
-The build is **single-threaded**, so we disable cross-origin isolation
-(`ensureCrossOriginIsolationHeaders:false` in `public/index.html`) — no
-SharedArrayBuffer is needed.
+## ⚔ Features
 
-## Layout
+**Gameplay**
+- Turn‑based tactical combat with multi‑phase boss battles and mid‑fight events.
+- Hand‑drawn, painterly art direction (Sands‑of‑Salzaar inspired) and an original score.
+- Fully playable in the browser — no install, no wallet required.
+
+**On‑chain (optional, opt‑in)**
+- **Connect any Sui wallet** (Slush and other Wallet‑Standard wallets) — first‑party page, no popup blocking.
+- **Chronicle NFTs with tiers** — clearing a battle mints a Chronicle whose
+  rank (Normal / Bronze / Silver / Gold) is computed **on‑chain** from a
+  per‑battle clear‑rank counter and your remaining HP.
+- **Mint integrity by design** — mints are gated by an authority‑signed ed25519
+  voucher, so a Chronicle can't be granted by hand‑crafting a transaction.
+- **Walrus sagas** — your written chronicle (battle log + long‑form text) is
+  uploaded to Walrus and pinned to the NFT via its blob id.
+
+## 🧱 Tech stack
+
+| Layer | Tech |
+|-------|------|
+| Game engine | **Godot 4.6** → HTML5 (single‑threaded WebGL2) |
+| Smart contracts | **Sui Move** (testnet) — Chronicle NFT + tiers + mint voucher |
+| Decentralized storage | **Walrus** — chronicle saga blobs |
+| Wallet | `@mysten/wallet-standard` (vanilla, no React) |
+| Hosting | **Cloudflare Pages** + Pages Functions (edge) + **GitHub Releases** (engine binaries) |
+| RPC | **Tatum** Sui gateway (server‑side key), public fullnode fallback |
+
+## 🏗 Architecture
+
+A Godot 4 HTML5 export produces two binaries that exceed normal hosting limits,
+so the build is split across three free tiers and stitched back together at the
+Cloudflare edge:
 
 ```
-public/                         ← Cloudflare Pages output directory
-├── index.html                  ← shell (COI off, loads bridge + engine)
-├── index.js                    ← Godot loader
-├── index.audio*.worklet.js     ← audio worklets (must stay same-origin)
-├── index.icon.png              ← favicon
-├── _redirects                  ← (no rules; binaries handled by the Function)
-└── _headers                    ← cache policy (no COOP/COEP)
-functions/                      ← Cloudflare Pages Functions (repo root, not public/)
-└── [[path]].js                 ← same-origin proxy: /index.wasm, /index.pck, /rpc
-bridge/                         ← Sui + Walrus wallet bridge (built into public/dist)
-├── config.public.js            ← PUBLIC ids/urls only — no key (RPC via /rpc)
-├── package.json
-├── scripts/build.mjs           ← esbuild bundler (no secrets baked in)
-└── src/                        ← bridge source (mirrors app/godot/web/src)
-scripts/upload-release.sh       ← uploads index.wasm + index.pck to a Release
+                       play.conssswars.com  (Cloudflare Pages)
+  browser ───────────────────────┬──────────────────────────────
+                                  │
+  public/ (static shell, <1 MB)   │  functions/[[path]].js  (edge worker)
+  • index.html  • loader/worklets  │  • /index.pck  ┐ proxied + edge‑cached from
+  • dist/ wallet bridge bundle     │  • /index.wasm ┘ GitHub Releases (same‑origin)
+                                  │  • /rpc          → Tatum (server key) → public RPC fallback
+                                  │  • /mint-voucher → ed25519 mint voucher (server key)
+                                  │
+                   GitHub Releases: index.pck (~128 MB) + index.wasm (~38 MB)
 ```
 
-`public/dist/` (the built bridge) and the engine binaries are **gitignored** —
-the bridge is built by CF Pages at deploy time; the binaries live in Releases.
+Why each piece:
 
-## Deploy
+- **Static shell on Pages** — the HTML/loader/worklets/icon and the built wallet bridge.
+- **Engine binaries on GitHub Releases** — `index.pck` (~128 MB, lossy‑WebP
+  optimized) and `index.wasm` (~38 MB) are too big for Pages' 25 MiB/file limit.
+- **Edge Function does the stitching** — a plain redirect to GitHub fails CORS
+  (release assets send no `Access-Control-Allow-Origin`), so the Function fetches
+  them server‑side and streams them back **same‑origin** with the correct
+  `Content-Type` (so WASM streaming compilation works). It **edge‑caches** the
+  binaries under a version‑stamped key (bumped per deploy) for fast repeat loads.
+- **Single‑threaded export** — cross‑origin isolation is disabled
+  (`ensureCrossOriginIsolationHeaders:false`), so no SharedArrayBuffer / COOP / COEP
+  setup is required. *Keep the export single‑threaded or this model breaks.*
 
-### One-command manual deploy (current method)
-After exporting the Web preset in Godot, run:
+## 🔐 Security model
+
+- **No secrets in the browser.** The Tatum API key and the mint‑voucher authority
+  key are **Cloudflare Pages runtime secrets** (`TATUM_API_KEY`,
+  `AUTHORITY_PRIVKEY_HEX`) read only inside the edge Function — never bundled.
+  `config.public.js` holds public IDs/URLs only.
+- **RPC proxy.** The browser's `SuiClient` POSTs to same‑origin `/rpc`; the
+  Function attaches the Tatum key server‑side and forwards, falling back to the
+  public Sui fullnode. Rotating the key is a dashboard change — no rebuild.
+- **Mint voucher.** `/mint-voucher` signs an ed25519 voucher (player, battle, HP,
+  nonce, expiry); the contract verifies the signature, sender, nonce
+  (anti‑replay) and expiry, and computes the tier on‑chain. Players sign the mint
+  with **their own** wallet — the server never holds player funds.
+
+> Honest scope: this is a fully client‑side game with no authoritative server
+> simulation, so the voucher proves *who* is minting, not that the reported HP/battle
+> were truly earned. It blocks signature forgery, replay, and hand‑built‑PTB mints;
+> server‑side rate‑limiting / progression checks are the next hardening step.
+
+## 🚀 Build & deploy
+
+Deploys are **manual by design** (your gate against shipping a bad build) and the
+Cloudflare token never lives in GitHub.
+
 ```bash
-cd play && scripts/deploy.sh        # copies fresh export → builds bridge → uploads Release → wrangler deploy → verifies
+# 1. In Godot (app/godot): export the "Web" preset → app/exports/web/
+#    (keep thread_support = false)
+
+# 2. One command does the rest:
+cd play && scripts/deploy.sh
+#    refresh shell → build bridge (no secrets) → upload binaries to a GitHub
+#    Release → version‑stamp the edge cache → wrangler pages deploy → verify
 ```
-This keeps the Cloudflare token **on your machine only** (read from `~/.cf_token`;
-account id from `$CLOUDFLARE_ACCOUNT_ID` or `~/.cf_account`) — **nothing is stored
-in GitHub** — and deploying is a deliberate manual step (your gate against bad
-builds). Delete `~/.cf_token` + revoke after. The numbered steps below are the
-same pipeline, broken out manually.
 
-### 1. Export the game (in the app repo)
-In Godot, export the **Web** preset from `app/godot` → `app/exports/web/`
-(`index.html`, `index.js`, `index.wasm`, `index.pck`, worklets, icon).
-Keep `variant/thread_support=false` so the single-threaded / no-COI model holds.
+**Prerequisites** (all local, none in GitHub):
+- `~/.cf_token` — a Cloudflare API token with *Pages → Edit* (delete + revoke after use).
+- `CLOUDFLARE_ACCOUNT_ID` env var, or `~/.cf_account`.
+- `gh` authenticated (for the Release upload).
 
-### 2. Upload the big binaries to a GitHub Release
-```bash
-cd play
-scripts/upload-release.sh            # defaults to ../app/exports/web
+**One‑time Cloudflare setup:** create a Pages project `consss-play`, add the
+`TATUM_API_KEY` and `AUTHORITY_PRIVKEY_HEX` secrets (dashboard or
+`wrangler pages secret put …`), and point the custom domain
+`play.conssswars.com` at it.
+
+## 🗂 Repository layout
+
 ```
-This creates a new release; `releases/latest/download/` (used by `_redirects`)
-auto-points at it, so no further edits are needed for new builds.
-
-### 3. Refresh the small shell files (only if the export's loader changed)
-```bash
-cp ../app/exports/web/index.js                        public/
-cp ../app/exports/web/index.audio.worklet.js          public/
-cp ../app/exports/web/index.audio.position.worklet.js public/
-cp ../app/exports/web/index.icon.png                  public/
-git add public && git commit -m "chore: refresh web shell" && git push
+public/                      Cloudflare Pages output (static shell)
+├── index.html               game shell (COI off, loads bridge + engine)
+├── index.js                 Godot loader + audio worklets + icon
+├── dist/                    built wallet bridge bundle (gitignored)
+├── _headers · _redirects    edge cache / routing policy
+functions/
+└── [[path]].js              edge worker: binary proxy + /rpc + /mint-voucher
+bridge/                      Sui + Walrus wallet bridge (esbuild → public/dist)
+├── config.public.js         public ids/urls only — no secrets
+└── src/                     wallet · sui-client · walrus · mint · chronicles · bridge
+scripts/
+└── deploy.sh                one‑command manual deploy
 ```
-(The custom `public/index.html` is maintained here, not overwritten by export.)
 
-### 4. Cloudflare Pages (one-time)
-1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git** →
-   pick `ConsssLab/play`.
-2. Build settings:
-   - **Build command:** `cd bridge && npm install && npm run build`
-   - **Build output directory:** `public`
-   - (No framework preset.)
-3. **Environment variables → add** `TATUM_API_KEY` = your Tatum key. This is a
-   **runtime secret** read by the `/rpc` Pages Function — it is never bundled
-   into the browser. Optional: without it, `/rpc` falls back to the public Sui
-   RPC, so the game still runs. (Set via dashboard, or
-   `wrangler pages secret put TATUM_API_KEY --project-name consss-play`.)
-4. Deploy. You'll get a `*.pages.dev` URL — open it and confirm the game loads.
-5. **Custom domains → Set up a custom domain → `play.conssswars.com`** (Cloudflare
-   adds the CNAME automatically if `conssswars.com` is on this account).
+The built bridge (`public/dist/`) and the engine binaries are gitignored — the
+bridge is built at deploy time, the binaries live in Releases.
 
-> Want to validate the risky part first? You can deploy with **no build command**
-> (just output `public`) to test pure game loading; the wallet bridge 404s
-> harmlessly and the game still runs. Add the build command afterwards.
+## 📦 On‑chain deployments (Sui testnet)
 
-### 5. Test in a browser
-- Game canvas loads past the "Loading…" screen (proves wasm + pck fetched).
-- Open DevTools → Network: `index.wasm` and `index.pck` should be `200`
-  (after the 302 to GitHub). DevTools → Console: no CORS errors.
-- Wallet connect / X / Discord buttons respond (top-level page → no iframe
-  popup blocking).
+| Object | ID |
+|--------|----|
+| Chronicle package | `0x5efb10426a8929e88510dbc80711e2bf371aca08b179167b3037e20d097f6980` |
+| Chronicle registry (shared) | `0x19b9f0fe18ea27a56f75b6d6302e00e80a9bf1656c81f87eecbb82a4bc3109ee` |
+| Witness registry (shared) | `0x7359529def5f8a225e6e7c460ff44ee4f276bdd5ce50c0c7b1e10faaa3e831d0` |
+| Walrus (testnet) | publisher / aggregator `walrus-testnet.walrus.space` · 5 epochs |
 
-## How the binaries are served (and the CORS gotcha)
+Contract source: [`ConsssLab/contracts`](https://github.com/ConsssLab/contracts).
 
-`functions/[[path]].js` is the mechanism — it is **required**, not a fallback.
-GitHub release assets do not send CORS headers, so the browser cannot fetch
-them cross-origin; the edge Function proxies them same-origin instead. It runs
-on the CF Pages Functions free tier (shares the Workers 100k req/day allowance;
-streaming the body uses negligible CPU, and `Cache-Control` lets the edge/browser
-cache repeat loads).
+## 🌐 Sibling sites
 
-If a future build re-enables `thread_support`, this whole model breaks (threads
-need cross-origin isolation, which then blocks even the same-origin proxy unless
-every response carries the right COOP/COEP/CORP headers). Keep the export
-single-threaded.
+| Site | Repo | Host |
+|------|------|------|
+| `conssswars.com` — official site | [`official-website`](https://github.com/ConsssLab/official-website) | Cloudflare Pages |
+| `consss.wal.app` — limited event | [`official-limit-time-event`](https://github.com/ConsssLab/official-limit-time-event) | Walrus Sites |
 
-## Sui RPC: server-side key, not in the browser
+## 👥 Credits
 
-The browser's `SuiClient` POSTs to **`/rpc`** (same-origin), handled by the same
-`functions/[[path]].js`. The Function attaches the Tatum `x-api-key` from the
-`TATUM_API_KEY` env var server-side and forwards to Tatum, falling back to the
-public Sui fullnode on any failure. The key is therefore **never shipped to the
-browser** (the old approach baked it into the bundle). `config.public.js` holds
-only public IDs/URLs; rotating the key = update the CF Pages env var, no rebuild.
-`mint()` is unaffected — it signs through the player's wallet, not `/rpc`.
+Made by the **ConsssLab** team for the Tatum × Build on Sui with Walrus
+hackathon — engineering, narrative & contracts, and art & music.
 
-## Sibling sites (not this repo)
+## License
 
-- `conssswars.com` → [`official-website`](https://github.com/ConsssLab/official-website) (CF Pages)
-- `consss.wal.app` → [`official-limit-time-event`](https://github.com/ConsssLab/official-limit-time-event) (Walrus Sites)
+© ConsssLab. All rights reserved. Game art, music, and story are proprietary;
+see the source repositories for any code‑specific licensing.
