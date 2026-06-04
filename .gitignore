@@ -1,9 +1,8 @@
 # Node deps for the bridge build
 bridge/node_modules/
 
-# Built bridge bundle — created by Cloudflare Pages at deploy time. The built
-# file embeds the Tatum API key (when TATUM_API_KEY is set), so it must never
-# be committed.
+# Built bridge bundle — a build artifact (esbuild), rebuilt by deploy.sh, not
+# source. No secrets are baked in: the Tatum key lives in the /rpc edge Function.
 public/dist/
 
 # Never commit a secret config if one is copied in by mistake
@@ -13,7 +12,7 @@ public/dist/
 .wrangler/
 
 # Large engine binaries live as GitHub Release assets, never in git
-# (GitHub rejects >100 MB; the .pck is ~316 MB).
+# (GitHub rejects >100 MB; the .pck is ~128 MB after lossy-WebP optimization).
 *.wasm
 *.pck
 

@@ -4,9 +4,11 @@
 //
 // Every entry point follows the same shape:
 //   window.consss.<fn>(arg, callback)
-// where `callback` is a Godot JavaScriptObject invoked with a single Array
-// containing a result dict: { ...fields, error: string | null }. We never
-// throw across the bridge — failures are surfaced via `error`.
+// where `callback` is a Godot JavaScriptObject. We invoke it with the result
+// dict as a SINGLE argument — cb(result), not cb([result]). Godot's
+// create_callback wraps JS args into an Array, so GDScript reads it as
+// `args[0] === { ...fields, error: string | null }`. We never throw across the
+// bridge — failures are surfaced via `error`.
 
 import { createSuiClient } from './sui-client.js';
 import { connect as walletConnect, signAndExecute, getConnected } from './wallet.js';
