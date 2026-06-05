@@ -17,12 +17,14 @@
   <img alt="engine" src="https://img.shields.io/badge/engine-Godot%204.6-478cbf">
   <img alt="chain" src="https://img.shields.io/badge/chain-Sui%20mainnet-6fbcf0">
   <img alt="storage" src="https://img.shields.io/badge/storage-Walrus-1f6feb">
+  <img alt="rpc" src="https://img.shields.io/badge/rpc-Tatum-7c3aed">
   <img alt="host" src="https://img.shields.io/badge/host-Cloudflare%20Pages-f38020">
 </p>
 
 > This repository is the **deployment repo** for the playable web build at
-> [play.conssswars.com](https://play.conssswars.com). The game source (Godot
-> project, Move contracts) lives in sibling repos — see [Related repositories](#related-repositories).
+> [play.conssswars.com](https://play.conssswars.com), **live on Sui mainnet**.
+> The game source (Godot project, Move contracts) lives in sibling repos — see
+> [Related repositories](#related-repositories).
 
 ---
 
@@ -33,12 +35,12 @@ in any modern browser with no install and **no wallet required**. Connect a Sui
 wallet and your results stop being throwaway: clear a battle and you can mint a
 **Chronicle** — a Sui NFT that records *which* battle you cleared, *how well* you
 fought (an on-chain tier), and a personal long-form saga you author, with the
-saga text stored on **Walrus**.
+saga JSON stored on **Walrus**.
 
 This repo packages a [Godot 4.6](https://godotengine.org) HTML5 export together
 with a vanilla-JS Sui + Walrus dApp bridge, and serves both from **Cloudflare
-Pages** with a Pages Function handling the heavy lifting (binary streaming, an
-RPC proxy, and an anti-cheat mint voucher).
+Pages** with a Pages Function handling the heavy lifting (binary streaming, a
+Tatum-keyed RPC proxy, and an anti-cheat mint voucher).
 
 ## Features
 
@@ -56,7 +58,27 @@ RPC proxy, and an anti-cheat mint voucher).
 - **Mint integrity** — every mint is gated by an authority-signed ed25519
   voucher, so a Chronicle cannot be granted by hand-crafting a transaction.
 - **Walrus sagas** — the chronicle JSON (battle log + long-form text) is uploaded
-  to Walrus; only its blob id is pinned on-chain.
+  to Walrus; only its blob id is pinned on-chain as `metadata_blob_id`.
+
+## Hackathon integration points
+
+This build integrates two of the track technologies as **core functionality**,
+not decoration. The table maps each to exactly where it is used in this repo.
+
+| Technology | Role | Where (browser side) | Where (server side) | Endpoint(s) used |
+|------------|------|----------------------|---------------------|------------------|
+| **Walrus** (decentralized storage) | Stores the player's Chronicle metadata JSON off-chain; only the returned blob id is pinned on-chain. | `bridge/src/walrus.js` — `uploadString()` **PUTs** the chronicle JSON to a Walrus **publisher** and returns a `blobId`; `fetchString()` / `blobUrl()` resolve it back from a Walrus **aggregator** (also used for NFT Display `image_url`). Exposed as `window.consss.uploadToWalrus` / `readFromWalrus`. | None — the publisher pays for storage, so no server proxy and no extra wallet tx are needed. | Publisher `PUT {publisherUrl}/v1/blobs?epochs={n}` · Aggregator `GET {aggregatorUrl}/v1/blobs/{blobId}` |
+| **Tatum API** (Sui RPC gateway) | The track's RPC gateway for all Sui JSON-RPC reads (owned-object queries, etc.). | `bridge/src/sui-client.js` — `SuiClient` is pointed at the **same-origin** `/rpc` path (`config.rpcProxyPath`), never at Tatum directly. The Tatum key is never in the browser bundle. | `functions/[[path]].js` (`/rpc` branch) injects the **Tatum** API key as an `x-api-key` header server-side, forwards to the Tatum gateway, and **falls back to the public Sui fullnode** on any error. | `POST /rpc` → `https://sui-mainnet.gateway.tatum.io` (key from `TATUM_API_KEY`) → public fullnode fallback |
+
+**Mainnet Walrus endpoints** (from `bridge/config.public.js`): publisher
+`https://walrus-publisher.rubynodes.io`, aggregator
+`https://aggregator.walrus-mainnet.walrus.space`, `storageEpochs = 5`.
+
+> **Why the community rubynodes publisher?** Mysten does not run a free public
+> **publisher** on Walrus mainnet (writes cost storage), so the bridge uses the
+> community **rubynodes** publisher for uploads. Reads use the standard Walrus
+> mainnet **aggregator**. Both are plain HTTP — the documented Walrus Web API
+> pattern — so no client-side encoding or extra wallet signature is required.
 
 ## Architecture
 
@@ -77,6 +99,9 @@ the edge. The browser only ever talks to `play.conssswars.com`.
                                       │
             GitHub Releases (ConsssLab/play, releases/latest/download):
                        index.pck (~385 MB) + index.wasm (~36 MB)
+
+   Walrus (no proxy): browser ── PUT ──▶ rubynodes publisher  (write saga JSON)
+                      browser ── GET ──▶ walrus-mainnet aggregator (read saga JSON)
 ```
 
 What each piece does:
@@ -98,8 +123,8 @@ What each piece does:
     Function injects the **Tatum** API key (`x-api-key`) server-side and forwards,
     falling back to the public Sui fullnode on any failure.
   - **`/mint-voucher`** — signs an authority ed25519 voucher binding the mint to
-    `(player, battle, hero, hp_pct, nonce, expiry)` and this deployment's
-    registry. See [Security model](#security-model).
+    `(registry, player, battle, hero, hp_pct, nonce, expiry)`. See
+    [Security model](#security-model).
 - **Single-threaded export** — cross-origin isolation is intentionally disabled
   (`ensureCrossOriginIsolationHeaders: false`, no COOP/COEP), so no
   SharedArrayBuffer setup is needed and the cross-origin engine load is not
@@ -112,14 +137,15 @@ What each piece does:
 getOwnedChronicles }` so the Godot HTML5 shell can drive Sui + Walrus via
 `JavaScriptBridge`. The mint flow is:
 
-1. Upload the chronicle JSON to Walrus (publisher HTTP API) → get a blob id.
+1. Upload the chronicle JSON to **Walrus** (publisher HTTP API) → get a blob id.
 2. `POST /mint-voucher` with the clear report → get an authority-signed voucher.
 3. Build and sign `chronicle::chronicle::mint_chronicle` with the player's own
-   wallet; the tier is computed on-chain. The server never holds player funds.
+   wallet, passing the report + voucher + `metadata_blob_id`; the tier is
+   computed on-chain. The server never holds player funds.
 
 `bridge/config.public.js` contains **only public on-chain data** (network,
-package/registry IDs, Walrus endpoints) — no secrets — and is safe to commit and
-ship in the browser bundle.
+package/registry IDs, Walrus endpoints, `/rpc` path) — no secrets — and is safe
+to commit and ship in the browser bundle.
 
 ## Configuration
 
@@ -150,25 +176,74 @@ never bundled, never committed, never shipped to the browser.
 
 ## Security model
 
-- **No secrets in the browser.** The Tatum key and the voucher authority key are
-  Cloudflare runtime secrets read only inside the Pages Function.
-  `config.public.js` holds public IDs/URLs only.
-- **RPC proxy.** The browser POSTs to same-origin `/rpc`; the Function attaches
-  the Tatum key server-side and forwards, falling back to the public fullnode.
-  Rotating the key is a dashboard change — no rebuild.
-- **Mint voucher.** `/mint-voucher` signs an ed25519 voucher over `(registry,
-  player, battle, hero, hp_pct, nonce, expiry)`. The on-chain contract verifies
-  the signature, sender, nonce (anti-replay) and expiry, and computes the tier
-  itself. Players sign the mint with their own wallet.
-- **Layer-1 guards** on `/mint-voucher`: an origin check, a KV-backed per-`(wallet,
-  battle)` rate limit, and a progression gate (battle *N* requires owning a
-  battle *N-1* Chronicle). The rate limit and progression gate are graceful — they
-  skip cleanly if `MINT_KV` / `CHRONICLE_TYPE` are unset.
+This is an honest, scoped model: a fully client-side game can never make the
+client untrusted by itself, so we are explicit about what the current defenses
+**do** guarantee, what they **don't yet**, and why that trade-off is acceptable
+today.
 
-> Honest scope: this is a fully client-side game with no authoritative server
-> simulation, so the voucher proves *who* is minting and blocks signature forgery,
-> replay, and hand-built-PTB mints — but it trusts the client-reported
-> `hp_pct`/`battle_id`. Server-authoritative replay is the next hardening step.
+### Defenses we have today
+
+- **No secrets in the browser.** The Tatum API key and the voucher authority
+  ed25519 signing key are Cloudflare **runtime secrets**, read only inside the
+  Pages Function. Local deploys read a Cloudflare API token from a deploy-only
+  `~/.cf_token`. None of these are ever in the committed browser bundle —
+  `config.public.js` holds public IDs/URLs only. Rotating a key is a dashboard
+  change, no rebuild.
+- **Same-origin `/rpc` proxy.** The browser POSTs to `/rpc`; the Function
+  attaches the Tatum key server-side and forwards, falling back to the public
+  fullnode. The key never reaches the browser and there is no CORS surface.
+- **Single mint chokepoint.** `/mint-voucher` is the *only* way to obtain a valid
+  voucher, and the on-chain contract **rejects any mint without one**. So even
+  though anyone can craft a Sui transaction, nobody can mint a Chronicle without
+  going through our server. It signs an ed25519 voucher over `(registry, player,
+  battle, hero, hp_pct, nonce, expiry)`; the contract verifies signature, sender,
+  nonce (anti-replay), expiry, and computes the tier itself. Players sign the
+  mint with their own wallet.
+- **Layer-1 anti-scripting guards** on `/mint-voucher`:
+  - **Origin check** — only requests from `https://play.conssswars.com` are
+    served (filters casual `curl` / foreign-site scripting).
+  - **KV rate limit** — a per-`(wallet, battle)` cooldown via the `MINT_KV`
+    binding, throttling automated re-requests.
+  - **Progression gate** — battle *N* requires already owning the battle *N-1*
+    Chronicle (queried via RPC), so the sequence can't be skipped.
+  - Rate limit and progression gate are **graceful** — they skip cleanly if
+    `MINT_KV` / `CHRONICLE_TYPE` are unset.
+- **Versioned edge caching** of the engine binaries, so a new release retires
+  old cached bytes by key bump (no broad cache-purge token scope needed).
+
+### What we do NOT (yet) do — stated plainly
+
+The Layer-1 guards plus the voucher chokepoint give us **anti-scripting**: they
+stop casual automation and they stop hand-crafted-PTB mints that bypass the
+server. They do **not** stop a determined player from driving the real client
+and reporting a *favorable* result, because `/mint-voucher` still **trusts the
+client-reported `hp_pct` / `battle_id`**. There is no server-authoritative
+simulation today, so that is the documented ceiling of the current design.
+
+**Why we accept this for now.** Every mint costs **real Sui mainnet gas**, paid
+by the attacker, and the reward is a collectible NFT — there is no token,
+yield, or marketplace value to extract. For a small project, the cost and effort
+of a sophisticated client-tampering exploit is high relative to that reward, so
+hardening past anti-scripting is not yet worth it. We chose to ship an honest
+chokepoint now rather than over-build.
+
+### Planned future anti-cheat ("no real play, no mint")
+
+The next hardening step makes the result **server-verified** instead of
+client-trusted, in two layers:
+
+1. **Server-authoritative validation** — the backend deterministically
+   **re-simulates / replays** the battle from a server-seeded start using the
+   recorded player inputs, and only issues a voucher if the replayed outcome
+   matches the claimed `hp_pct` / clear.
+2. **zk-proof of correct play** — a zero-knowledge proof that a valid play
+   session produced the claimed result, so the server can verify *without*
+   trusting (or even re-running) the raw client trace.
+
+**Importantly, neither requires a smart-contract change.** The voucher interface
+(`mint_chronicle` + the signed message format) stays exactly as it is today; only
+the **backend's decision to sign** gets stricter. That keeps this upgrade path
+fully forward-compatible with the deployed mainnet package.
 
 ## Local development
 
@@ -231,7 +306,7 @@ public/                      Cloudflare Pages output (static shell)
 ├── dist/                    built wallet bridge bundle (gitignored)
 ├── _headers · _redirects    edge caching / routing policy
 functions/
-└── [[path]].js              Pages Function: binary proxy + /rpc + /mint-voucher
+└── [[path]].js              Pages Function: binary proxy + /rpc (Tatum) + /mint-voucher
 bridge/                      Sui + Walrus wallet bridge (esbuild → public/dist)
 ├── config.public.js         public IDs / URLs only — no secrets
 ├── scripts/build.mjs        esbuild driver
