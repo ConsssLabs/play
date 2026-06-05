@@ -5,7 +5,8 @@
 // server-side secret (CF Pages env var TATUM_API_KEY) and falls back to the
 // public Sui fullnode — so the key is never shipped to the browser.
 //
-// IDs below are public on-chain data (2026-05-30 testnet Chronicle deploy).
+// IDs below are public on-chain data (2026-06-05 testnet redeploy of the
+// restructured chronicle package: chronicle + echoes_of_chainoa modules).
 
 export const CONSSS_CONFIG = {
   network: 'testnet',
@@ -15,9 +16,9 @@ export const CONSSS_CONFIG = {
   rpcProxyPath: '/rpc',
 
   sui: {
-    chroniclePackageId: '0x5efb10426a8929e88510dbc80711e2bf371aca08b179167b3037e20d097f6980',
-    chronicleRegistryId: '0x19b9f0fe18ea27a56f75b6d6302e00e80a9bf1656c81f87eecbb82a4bc3109ee',
-    witnessRegistryId: '0x7359529def5f8a225e6e7c460ff44ee4f276bdd5ce50c0c7b1e10faaa3e831d0',
+    chroniclePackageId: '0xe6d697993e777535844f7916be78e9a76de0cb14448cb6db4a34893190b87e60',
+    chronicleRegistryId: '0xd2fd91abd54d954ec457af81bc86613040a9b71abde43613ec51765a230d921f',
+    finaleRegistryId: '0x5962cf4322b2a288ec7ec3a448501af6ceab741f3991ff1e240bce728efe6bc3',
   },
 
   walrus: {
