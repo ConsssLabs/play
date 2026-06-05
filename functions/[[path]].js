@@ -130,11 +130,26 @@ function jsonPassthrough(resp) {
 }
 
 // --- /mint-voucher : authority-signed voucher (anti-cheat) -----------------
+// LAYER 1 anti-abuse (raises the bar against "skip the game, just POST here";
+// the real "no-play-no-mint" guarantee is server-authoritative replay — Layer 2):
+//   a) origin guard      — only the game page may request (lazy filter)
+//   b) rate limit (KV)   — per (wallet, battle) cooldown; needs MINT_KV binding
+//   c) progression gate  — battle N requires an owned battle N-1 Chronicle;
+//                          needs CHRONICLE_TYPE env (= "0x<pkg>::chronicle::Chronicle")
+// (b)/(c) are graceful: if MINT_KV / CHRONICLE_TYPE are unset they're skipped.
 const VOUCHER_TTL_MS = 10 * 60 * 1000;
+const VOUCHER_COOLDOWN_SEC = 60;            // per (wallet, battle) min gap
+const ALLOWED_ORIGIN = 'https://play.conssswars.com';
 
 async function handleMintVoucher(context) {
   const { request, env } = context;
   if (request.method !== 'POST') return jsonOut({ error: 'POST only' }, 405);
+
+  // (a) origin guard — browsers send Origin; a no-Origin curl or a foreign site
+  // is rejected. Spoofable, but filters casual scripting cheaply.
+  const origin = request.headers.get('Origin') || '';
+  if (origin !== ALLOWED_ORIGIN) return jsonOut({ error: 'forbidden origin' }, 403);
+
   const pkHex = env.AUTHORITY_PRIVKEY_HEX;
   if (!pkHex) return jsonOut({ error: 'authority key not configured' }, 500);
 
@@ -149,11 +164,27 @@ async function handleMintVoucher(context) {
   if (!(hero_id >= 1 && hero_id <= 20)) return jsonOut({ error: 'bad hero_id' }, 400);
   if (!Number.isInteger(hp_pct) || hp_pct < 0 || hp_pct > 100) return jsonOut({ error: 'bad hp_pct' }, 400);
 
+  // (b) per-(wallet, battle) rate limit.
+  const rlKey = `rl:${player}:${battle_id}`;
+  if (env.MINT_KV && (await env.MINT_KV.get(rlKey))) {
+    return jsonOut({ error: 'rate limited — try again shortly' }, 429);
+  }
+
+  // (c) progression gate — must already own the previous battle's Chronicle.
+  if (battle_id >= 2 && env.CHRONICLE_TYPE) {
+    const ok = await ownsChronicleForBattle(env, player, battle_id - 1);
+    if (!ok) return jsonOut({ error: `must clear battle ${battle_id - 1} first` }, 403);
+  }
+
   const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0, true);
   const expiry_ms = BigInt(Date.now() + VOUCHER_TTL_MS);
 
   const msg = buildVoucherMessage(player, battle_id, hero_id, hp_pct, nonce, expiry_ms);
   const sig = await ed.signAsync(msg, hexToBytes(pkHex));
+
+  if (env.MINT_KV) {
+    context.waitUntil(env.MINT_KV.put(rlKey, '1', { expirationTtl: VOUCHER_COOLDOWN_SEC }));
+  }
 
   return jsonOut({
     player, battle_id, hero_id, hp_pct,
@@ -163,15 +194,47 @@ async function handleMintVoucher(context) {
   });
 }
 
+// Does `player` own a Chronicle for `battle`? Queries the public Sui RPC by the
+// Chronicle struct type (so only Chronicles come back). Fails OPEN on RPC error
+// so an infra hiccup never blocks a legit player.
+async function ownsChronicleForBattle(env, player, battle) {
+  const rpc = env.PUBLIC_RPC_URL || DEFAULT_PUBLIC_RPC;
+  try {
+    const r = await fetch(rpc, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'suix_getOwnedObjects',
+        params: [player, { filter: { StructType: env.CHRONICLE_TYPE }, options: { showContent: true } }, null, 50],
+      }),
+    });
+    const j = await r.json();
+    const items = (j && j.result && j.result.data) || [];
+    for (const it of items) {
+      const f = it && it.data && it.data.content && it.data.content.fields;
+      if (f && Number(f.battle_id) === battle) return true;
+    }
+    return false;
+  } catch (_) {
+    return true; // fail-open
+  }
+}
+
+// Domain prefix — MUST byte-match chronicle.move VOUCHER_DOMAIN.
+const VOUCHER_DOMAIN = new TextEncoder().encode('ConSSSWars/chronicle-voucher/v1');
+
 // Canonical voucher message — must byte-match chronicle.move build_voucher_message:
-// player:address(32) ++ battle_id:u8 ++ hero_id:u8 ++ hp_pct:u8 ++ nonce:u64(LE) ++ expiry:u64(LE)
+// VOUCHER_DOMAIN ++ player:address(32) ++ battle_id:u8 ++ hero_id:u8 ++ hp_pct:u8
+//   ++ nonce:u64(LE) ++ expiry:u64(LE)
 function buildVoucherMessage(player, battle_id, hero_id, hp_pct, nonce, expiry_ms) {
-  const m = new Uint8Array(32 + 1 + 1 + 1 + 8 + 8);
-  m.set(hexToBytes(player.slice(2)), 0);
-  m[32] = battle_id; m[33] = hero_id; m[34] = hp_pct;
+  const d = VOUCHER_DOMAIN.length;
+  const m = new Uint8Array(d + 32 + 1 + 1 + 1 + 8 + 8);
+  m.set(VOUCHER_DOMAIN, 0);
+  m.set(hexToBytes(player.slice(2)), d);
+  m[d + 32] = battle_id; m[d + 33] = hero_id; m[d + 34] = hp_pct;
   const dv = new DataView(m.buffer);
-  dv.setBigUint64(35, nonce, true);
-  dv.setBigUint64(43, expiry_ms, true);
+  dv.setBigUint64(d + 35, nonce, true);
+  dv.setBigUint64(d + 43, expiry_ms, true);
   return m;
 }
 
