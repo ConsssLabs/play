@@ -42,8 +42,8 @@ const PROXIED = {
 };
 
 // Testnet defaults; override via CF Pages env vars if you switch networks.
-const DEFAULT_TATUM_RPC = 'https://sui-testnet.gateway.tatum.io';
-const DEFAULT_PUBLIC_RPC = 'https://fullnode.testnet.sui.io:443';
+const DEFAULT_TATUM_RPC = 'https://sui-mainnet.gateway.tatum.io';
+const DEFAULT_PUBLIC_RPC = 'https://fullnode.mainnet.sui.io:443';
 
 export async function onRequest(context) {
   const { request, next } = context;
