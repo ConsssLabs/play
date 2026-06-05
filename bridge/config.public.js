@@ -22,7 +22,7 @@ export const CONSSS_CONFIG = {
   },
 
   walrus: {
-    publisherUrl: 'https://publisher.walrus-mainnet.walrus.space',
+    publisherUrl: 'https://walrus-publisher.rubynodes.io',
     aggregatorUrl: 'https://aggregator.walrus-mainnet.walrus.space',
     storageEpochs: 5,
   },
