@@ -152,6 +152,9 @@ async function handleMintVoucher(context) {
 
   const pkHex = env.AUTHORITY_PRIVKEY_HEX;
   if (!pkHex) return jsonOut({ error: 'authority key not configured' }, 500);
+  // Voucher is bound to THIS deployment's registry (anti cross-deployment replay).
+  const registryId = env.CHRONICLE_REGISTRY_ID;
+  if (!registryId) return jsonOut({ error: 'registry id not configured' }, 500);
 
   let b;
   try { b = await request.json(); } catch (_) { return jsonOut({ error: 'bad json' }, 400); }
@@ -179,7 +182,7 @@ async function handleMintVoucher(context) {
   const nonce = new DataView(crypto.getRandomValues(new Uint8Array(8)).buffer).getBigUint64(0, true);
   const expiry_ms = BigInt(Date.now() + VOUCHER_TTL_MS);
 
-  const msg = buildVoucherMessage(player, battle_id, hero_id, hp_pct, nonce, expiry_ms);
+  const msg = buildVoucherMessage(registryId, player, battle_id, hero_id, hp_pct, nonce, expiry_ms);
   const sig = await ed.signAsync(msg, hexToBytes(pkHex));
 
   if (env.MINT_KV) {
@@ -224,19 +227,23 @@ async function ownsChronicleForBattle(env, player, battle) {
 const VOUCHER_DOMAIN = new TextEncoder().encode('ConSSSWars/chronicle-voucher/v1');
 
 // Canonical voucher message — must byte-match chronicle.move build_voucher_message:
-// VOUCHER_DOMAIN ++ player:address(32) ++ battle_id:u8 ++ hero_id:u8 ++ hp_pct:u8
-//   ++ nonce:u64(LE) ++ expiry:u64(LE)
-function buildVoucherMessage(player, battle_id, hero_id, hp_pct, nonce, expiry_ms) {
+// VOUCHER_DOMAIN ++ registry_id:address(32) ++ player:address(32)
+//   ++ battle_id:u8 ++ hero_id:u8 ++ hp_pct:u8 ++ nonce:u64(LE) ++ expiry:u64(LE)
+function buildVoucherMessage(registry_id, player, battle_id, hero_id, hp_pct, nonce, expiry_ms) {
   const d = VOUCHER_DOMAIN.length;
-  const m = new Uint8Array(d + 32 + 1 + 1 + 1 + 8 + 8);
+  const m = new Uint8Array(d + 32 + 32 + 1 + 1 + 1 + 8 + 8);
   m.set(VOUCHER_DOMAIN, 0);
-  m.set(hexToBytes(player.slice(2)), d);
-  m[d + 32] = battle_id; m[d + 33] = hero_id; m[d + 34] = hp_pct;
+  m.set(addr32(registry_id), d);
+  m.set(addr32(player), d + 32);
+  m[d + 64] = battle_id; m[d + 65] = hero_id; m[d + 66] = hp_pct;
   const dv = new DataView(m.buffer);
-  dv.setBigUint64(d + 35, nonce, true);
-  dv.setBigUint64(d + 43, expiry_ms, true);
+  dv.setBigUint64(d + 67, nonce, true);
+  dv.setBigUint64(d + 75, expiry_ms, true);
   return m;
 }
+
+// A Sui address/object-id as exactly 32 bytes (left-pads short hex like 0x7).
+function addr32(h) { return hexToBytes(h.replace(/^0x/, '').padStart(64, '0')); }
 
 function hexToBytes(h) {
   h = h.replace(/^0x/, '');
